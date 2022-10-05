@@ -3,7 +3,7 @@
 const { io } = require('socket.io-client');
 const Chance = require('chance');
 const createSendMessage = require('./sendMessage');
-const handleReceived = require('./handleReceipt');
+const handleReceived = require('../../../handleReceipt');
 
 const socket = io('http://localhost:3002');
 

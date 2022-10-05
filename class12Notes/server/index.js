@@ -2,11 +2,11 @@
 
 const { Server } = require('socket.io');
 const PORT = process.env.PORT || 3002;
-
+const Queue = require('./lib/queue');
 // instance of a listening event server at http://localhost:3002
 const server = new Server(PORT);
-
-
+const messages = server.of('/messages');
+const messageQueue = new Queue();
 // now I can create a namespace
 const brightness = server.of('/brightness');
 
@@ -14,10 +14,24 @@ const brightness = server.of('/brightness');
 
 // time to connect to server
 server.on('connection', (socket) => {
-  console.log('Socket connected to Event server!', socket.id);
+  console.log('Socket connected to namespace /messages!', socket.id);
+
+  // remember that you can do socket.onAny to log events
+
+  socket.on('JOIN', (queueId) => {
+
+  });
 
   socket.on('MESSAGE', (payload) => {
     console.log('Server MESSAGE event', payload);
+    // managing queue
+    let currentQueue = messageQueue.read(payload.queueId);
+    if(!currentQueue){
+      let queueKey = messageQueue.store(payload.queueId, new Queue());
+      currentQueue = messageQueue.read(queueKey);
+    }
+
+    currentQueue.store(payload.messageId, payload);
     // 3 different ways that I might emit - likely makes sense to do ONLY one
     // socket.emit('MESSGAE', payload); //sends to all parties in the socket
     // server.emit('MESSAGE', payload); //sending the message to all parties in the server
@@ -25,7 +39,27 @@ server.on('connection', (socket) => {
   });
   socket.on('RECEIVED', (payload) => {
     console.log('Server RECEIVED event', payload);
-    socket.broadcast.emit('RECEIVED', payload);
+
+    // managing queue
+    let currentQueue = messageQueue.read(payload.queueId);
+    if(!currentQueue){
+      throw new Error('no queue created');
+    }
+
+    let message = currentQueue.remove(payload.messageId);
+
+
+    socket.to(payload.queueId).emit('RECEIVED', payload);
+  });
+
+  socket.on('GET_MESSAGES', (payload) => {
+    console.log('this is heppening');
+    let currentQueue = messageQueue.read(payload.queueId);
+    if(currentQueue && currentQueue.data){
+      Object.keys(currentQueue.data).forEach(messageId => {
+        socket.emit('MESSAGE', currentQueue.read(messageId));
+      });
+    }
   });
 
 
